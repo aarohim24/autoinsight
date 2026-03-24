@@ -16,7 +16,7 @@ structlog.configure(
     context_class=dict, logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
 )
 logger = structlog.get_logger(__name__)
-_raw = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:8501")
+_raw = os.environ.get("ALLOWED_ORIGINS", "https://autoinsight-peach.vercel.app,http://localhost:3000,http://localhost:3001")
 ALLOWED_ORIGINS = [o.strip() for o in _raw.split(",") if o.strip()]
 
 @asynccontextmanager
