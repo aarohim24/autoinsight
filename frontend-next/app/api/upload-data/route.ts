@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND = process.env.BACKEND_URL || "http://localhost:8000/api";
+import { BACKEND, proxyFetch } from "@/lib/proxy";
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData();
-  const res = await fetch(`${BACKEND}/upload-data`, {
-    method: "POST",
-    body: form,
-  });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  try {
+    const form = await req.formData();
+    const { data, status } = await proxyFetch(`${BACKEND}/upload-data`, {
+      method: "POST",
+      body: form,
+    });
+    return NextResponse.json(data, { status });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message }, { status: 502 });
+  }
 }
+

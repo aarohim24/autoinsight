@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND = process.env.BACKEND_URL || "http://localhost:8000/api";
+import { BACKEND, proxyFetch } from "@/lib/proxy";
 
 export async function POST(req: NextRequest) {
-  const sid = req.headers.get("X-Session-Id") || "";
-  const res = await fetch(`${BACKEND}/generate-insights`, {
-    method: "POST",
-    headers: { "X-Session-Id": sid, "Content-Type": "application/json" },
-  });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  try {
+    const sid = req.headers.get("X-Session-Id") || "";
+    const { data, status } = await proxyFetch(`${BACKEND}/generate-insights`, {
+      method: "POST",
+      headers: { "X-Session-Id": sid, "Content-Type": "application/json" },
+    });
+    return NextResponse.json(data, { status });
+  } catch (err: any) {
+    return NextResponse.json({ detail: err.message }, { status: 502 });
+  }
 }
+
