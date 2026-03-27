@@ -6,4 +6,4 @@ COPY backend/ backend/
 COPY sample_data/ sample_data/
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"]
