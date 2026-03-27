@@ -1,6 +1,6 @@
-// Empty base → all requests go to Next.js API routes on the same origin (/api/...)
-// The Next.js routes proxy to BACKEND_URL (set in Vercel env vars, server-side only)
-const API_BASE = "";
+// Relative path — routes through Next.js API proxy (app/api/*)
+// The proxy routes forward to BACKEND_URL (server-side Vercel env var)
+const API_BASE = "/api";
 function h(sid?: string): HeadersInit {
   const headers: Record<string,string> = {"Content-Type":"application/json"};
   if (sid) headers["X-Session-Id"] = sid;
