@@ -6,7 +6,16 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 > **Upload any CSV. Get instant AI-powered insights.**
-> Production-grade data analysis tool for non-technical users — backed by Claude.
+> Production-grade data analysis tool for non-technical users — backed by Groq API.
+
+---
+
+## 🚀 Quick Start
+
+New to this project? See the docs folder:
+- **[Quick Start](./docs/QUICK_START.md)** — Get running in 5 minutes
+- **[Setup Guide](./docs/SETUP_GUIDE.md)** — Detailed step-by-step setup
+- **[Fixes Applied](./docs/FIXES_APPLIED.md)** — Recent improvements & fixes
 
 ---
 
@@ -21,12 +30,13 @@ autoinsight/
 │   │   └── api.py                # All API endpoints (async, session-scoped, rate-limited)
 │   └── modules/
 │       ├── data_processor.py     # CSV ingestion, stats, correlation, trend detection
-│       ├── llm_engine.py         # Async Claude API calls with retry + structured output
+│       ├── llm_engine.py         # Async Groq API calls with retry + structured output
 │       ├── session_store.py      # Redis-backed session store (in-memory fallback)
 │       └── cache.py              # LLM response cache keyed on summary hash
 │
-├── frontend/
-│   └── app.py                    # Streamlit dashboard (session-aware, env-configurable)
+├── frontend-next/
+│   ├── app/                      # Next.js App Router (pages, API routes)
+│   └── lib/                      # Client utilities (API, proxy helpers)
 │
 ├── tests/
 │   ├── conftest.py               # Shared fixtures, env setup
@@ -51,7 +61,7 @@ autoinsight/
 ## System Design
 
 ```
-Browser (Streamlit)
+Browser (Next.js Frontend @ localhost:3000)
       │  X-Session-Id header on every request
       ▼
 FastAPI Backend  ──── SlowAPI rate limiter (per IP)
@@ -67,12 +77,12 @@ FastAPI Backend  ──── SlowAPI rate limiter (per IP)
       │
       ├── POST /api/generate-insights (rate: 5/min per IP)
       │     • Checks insight cache (Redis/memory, keyed on summary hash)
-      │     • On miss: calls Claude via llm_engine
+      │     • On miss: calls Groq API via llm_engine
       │     • tenacity: 4 retries, exponential backoff (2–30s)
       │     • Stores result in cache (TTL: 1hr)
       │
       └── POST /api/query            (rate: 10/min per IP)
-            • NL question → Claude → structured JSON answer
+            • NL question → Groq API → structured JSON answer
             • Confidence + caveat fields returned
 
 Session Store (Redis / in-memory fallback)
@@ -94,10 +104,10 @@ Insight Cache (Redis / in-memory LRU)
 
 - Python ≥ 3.11
 - Redis (optional — falls back to in-memory if unavailable)
-- `ANTHROPIC_API_KEY` in your environment
+- `GROQ_API_KEY` in your environment (get free key at [console.groq.com](https://console.groq.com))
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+export GROQ_API_KEY="gsk-..."
 ```
 
 ### Local dev (no Docker)
@@ -124,7 +134,7 @@ Open **http://localhost:8501** — upload `sample_data/sample_sales.csv` to try 
 
 ```bash
 cp .env.example .env
-# Edit .env — set ANTHROPIC_API_KEY
+# Edit .env — set GROQ_API_KEY (get from console.groq.com)
 
 docker compose up --build
 ```
@@ -197,10 +207,8 @@ See `.env.example` for the full reference. Key variables:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | **Yes** | — | Your Anthropic API key |
+| `GROQ_API_KEY` | **Yes** | — | Your Groq API key ([get free key](https://console.groq.com)) |
 | `REDIS_URL` | No | `redis://localhost:6379/0` | Redis connection (omit = memory fallback) |
-| `ALLOWED_ORIGINS` | No | `http://localhost:8501` | CORS allowed origins (comma-separated) |
-| `API_BASE_URL` | No | `http://localhost:8000/api` | Backend URL as seen by frontend |
 | `SESSION_TTL_SECONDS` | No | `3600` | Session lifetime |
 | `CACHE_TTL_SECONDS` | No | `3600` | Insight cache lifetime |
 | `LOG_LEVEL` | No | `INFO` | `DEBUG\|INFO\|WARNING\|ERROR` |
@@ -253,7 +261,7 @@ Regenerate it anytime: `python sample_data/generate_sample.py`
 **"Why Redis instead of a database?"**
 Session data is short-lived (1 hr TTL) and needs fast key-value access — Redis fits perfectly. A relational DB would be overkill and slower for this pattern.
 
-**"What happens if the Anthropic API goes down?"**
+**"What happens if the Groq API goes down?"**
 `tenacity` retries up to 4 times with exponential backoff (2–30s). After that, the route returns a clean 502 with a user-friendly message — no stack trace exposed.
 
 **"How would you scale this to 10,000 concurrent users?"**
