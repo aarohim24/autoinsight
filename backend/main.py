@@ -42,6 +42,12 @@ ALLOWED_ORIGINS = ["*"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    try:
+        import groq
+        logger.info("groq_version_detected", version=groq.__version__)
+    except Exception as e:
+        logger.error("groq_import_failed", error=str(e))
+    
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not groq_key:
         logger.error("no_groq_key", hint="Set GROQ_API_KEY environment variable")
