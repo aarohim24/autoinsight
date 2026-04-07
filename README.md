@@ -15,6 +15,7 @@
 New to this project? See the docs folder:
 - **[Quick Start](./docs/QUICK_START.md)** — Get running in 5 minutes
 - **[Setup Guide](./docs/SETUP_GUIDE.md)** — Detailed step-by-step setup
+- **[Deployment Guide](./docs/DEPLOYMENT.md)** — Deploy backend (Render, Fly.io, Heroku)
 - **[Fixes Applied](./docs/FIXES_APPLIED.md)** — Recent improvements & fixes
 
 ---
