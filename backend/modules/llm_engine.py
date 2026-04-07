@@ -26,7 +26,7 @@ def _build_summary_text(summary, filename):
     for c in summary.get("strong_correlations", [])[:6]:
         lines.append("  " + c["col1"] + " <-> " + c["col2"] + ": r=" + str(c["r"]))
     for t in summary.get("trends", [])[:6]:
-        lines.append("  " + t["column"] + ": " + t["direction"])
+        lines.append("  " + t["column"] + ": " + t["direction"] + " (" + str(round(t["magnitude_pct"], 1)) + "%)")
     return "\n".join(lines)
 
 
