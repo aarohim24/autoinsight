@@ -83,9 +83,15 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
+        try:
+            import groq
+            groq_version = groq.__version__
+        except:
+            groq_version = "unknown"
         return {
             "status": "ok",
             "version": app.version,
+            "groq_version": groq_version,
             "groq_key_set": bool(os.environ.get("GROQ_API_KEY")),
         }
 
