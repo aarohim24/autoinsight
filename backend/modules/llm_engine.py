@@ -39,25 +39,34 @@ def _parse_json(raw, fallback_key="insights"):
 
 
 async def _call_groq(system, user):
-    from groq import Groq
-    import traceback
-    try:
-        logger.info("groq_init_start")
-        client = Groq(api_key=_get_api_key())
-        logger.info("groq_init_success")
-    except Exception as e:
-        logger.error("groq_init_failed", error=str(e), traceback=traceback.format_exc())
-        raise
+    import httpx
+    import json
+    
+    api_key = _get_api_key()
+    
     logger.info("groq_call_start", model=MODEL)
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        max_tokens=1200,
-    )
-    text = response.choices[0].message.content
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": MODEL,
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                "max_tokens": 1200,
+                "temperature": 0.7,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        text = data["choices"][0]["message"]["content"]
+    
     logger.info("groq_call_done", chars=len(text))
     return text
 
