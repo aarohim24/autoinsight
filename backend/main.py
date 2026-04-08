@@ -73,6 +73,17 @@ def create_app() -> FastAPI:
 
     app.include_router(router, prefix="/api")
 
+    @app.get("/")
+    async def root():
+        return {
+            "name": "AutoInsight API",
+            "version": app.version,
+            "status": "running",
+            "docs": "http://localhost:8000/docs",
+            "health": "http://localhost:8000/health",
+            "api_prefix": "/api",
+        }
+
     @app.exception_handler(Exception)
     async def err(request: Request, exc: Exception):
         logger.error("unhandled", path=request.url.path, error=str(exc))
