@@ -39,15 +39,15 @@ def _parse_json(raw, fallback_key="insights"):
 
 
 async def _call_groq(system, user):
+    from groq import Groq
+    import traceback
     try:
-        from groq import Groq
-        logger.info("groq_instantiate_start")
+        logger.info("groq_init_start")
         client = Groq(api_key=_get_api_key())
-        logger.info("groq_instantiate_success")
+        logger.info("groq_init_success")
     except Exception as e:
-        logger.error("groq_instantiate_failed", error=str(e), error_type=type(e).__name__)
+        logger.error("groq_init_failed", error=str(e), traceback=traceback.format_exc())
         raise
-    
     logger.info("groq_call_start", model=MODEL)
     response = client.chat.completions.create(
         model=MODEL,
