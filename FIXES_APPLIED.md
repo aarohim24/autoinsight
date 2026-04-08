@@ -4,22 +4,21 @@
 
 Your project was failing to read CSV files and generate results due to a **critical migration issue**: the codebase was migrated from Anthropic API to Groq API, but configuration files and dependencies were not updated. Here are all the fixes applied:
 
-### 1. ✅ Missing Groq Library in Dependencies
+### 1. ✅ Fixed Groq Library Dependency Issue
 **File**: `requirements.txt`
 
-**Problem**: The code uses `from groq import Groq` but the `groq` package was never added to requirements.
+**Problem**: Code was using `groq==0.4.0` SDK which has initialization issues with the `proxies` argument. But our code uses the Groq REST API via httpx, not the SDK.
 
-**Fix**: Added `groq==0.12.0` to the LLM/HTTP section
+**Fix**: Removed the incompatible `groq` package since we use HTTP API directly:
 
 ```
 # Before
-# ── LLM / HTTP ────────────────────────────────────────────────────────
-httpx==0.28.1
-tenacity==9.0.0
+groq==0.4.0
 
 # After
-# ── LLM / HTTP ────────────────────────────────────────────────────────
-groq==0.12.0
+# (removed - using Groq REST API via httpx instead)
+
+# ── LLM / HTTP (using Groq REST API, not SDK) ─────────────────────────
 httpx==0.28.1
 tenacity==9.0.0
 ```
