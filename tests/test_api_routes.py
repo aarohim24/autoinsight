@@ -12,8 +12,7 @@ import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-sys.path.insert(0, "/home/claude/autoinsight")
-os.environ["GROQ_API_KEY"] = "gsk-test-key"
+os.environ.setdefault("GROQ_API_KEY", "gsk-test-key")
 
 # In-memory mock store
 _store: dict = {}

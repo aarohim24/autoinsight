@@ -2,10 +2,28 @@
 import os
 import sys
 
-# Ensure project root is on path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-# Set test env vars before any imports
-os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test-key-placeholder")
-os.environ.setdefault("ALLOWED_ORIGINS", "http://localhost:8501")
+os.environ.setdefault("GROQ_API_KEY", "gsk-test-placeholder")
 os.environ.setdefault("LOG_LEVEL", "WARNING")
+
+SAMPLE_CSV = (
+    b"date,region,sales,units\n"
+    b"2023-01-01,North,10000,500\n"
+    b"2023-01-02,South,9000,450\n"
+    b"2023-01-03,East,8000,400\n"
+)
+
+
+import pytest
+
+
+@pytest.fixture
+def uploaded_session(client):
+    """Upload a sample CSV and return the session ID."""
+    resp = client.post(
+        "/api/upload-data",
+        files={"file": ("data.csv", SAMPLE_CSV, "text/csv")},
+    )
+    assert resp.status_code == 201
+    return resp.json()["session_id"]

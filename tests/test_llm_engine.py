@@ -10,8 +10,7 @@ import httpx
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-sys.path.insert(0, "/home/claude/autoinsight")
-os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test-key"
+os.environ.setdefault("GROQ_API_KEY", "gsk-test-key")
 
 from backend.modules import llm_engine as llm
 
@@ -38,17 +37,14 @@ VALID_INSIGHTS = {
 
 class TestGetApiKey:
     def test_missing_key_raises(self):
-        with patch.dict(os.environ, {}, clear=True):
-            # Remove the key temporarily
-            env = os.environ.copy()
-            env.pop("ANTHROPIC_API_KEY", None)
-            with patch.dict(os.environ, env, clear=True):
-                with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
-                    llm._get_api_key()
+        env = {k: v for k, v in os.environ.items() if k != "GROQ_API_KEY"}
+        with patch.dict(os.environ, env, clear=True):
+            with pytest.raises(RuntimeError, match="GROQ_API_KEY"):
+                llm._get_api_key()
 
     def test_key_returned(self):
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-abc123"}):
-            assert llm._get_api_key() == "sk-ant-abc123"
+        with patch.dict(os.environ, {"GROQ_API_KEY": "gsk-abc123"}):
+            assert llm._get_api_key() == "gsk-abc123"
 
 
 class TestBuildSummaryText:
