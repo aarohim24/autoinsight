@@ -22,7 +22,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [meta, setMeta] = useState<UploadMeta | null>(null);
   const [summary, setSummary] = useState<DataSummary | null>(null);
-  const [preview, setPreview] = useState<Record<string, unknown>[]>([]);
+  const [preview, setPreview] = useState<Record<string, any>[]>([]);
   const [insights, setInsights] = useState<InsightResult | null>(null);
   const [loadingI, setLoadingI] = useState(false);
   const [iErr, setIErr] = useState("");

@@ -42,7 +42,8 @@ export interface DataSummary {
 export interface AnalyzeResponse {
   meta: UploadMeta;
   summary: DataSummary;
-  preview: Record<string, unknown>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  preview: Record<string, any>[];
 }
 
 export interface InsightResult {
