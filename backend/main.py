@@ -14,7 +14,6 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from backend.routes.api import limiter, router
 
-# Load environment variables from .env file
 load_dotenv()
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -36,15 +35,15 @@ structlog.configure(
 
 logger = structlog.get_logger(__name__)
 
-# Allow ALL origins — fixes CORS permanently
-ALLOWED_ORIGINS = ["*"]
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000")
+ALLOWED_ORIGINS: list[str] = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not groq_key:
-        logger.error("no_groq_key", hint="Set GROQ_API_KEY environment variable")
+        logger.error("startup_error", reason="GROQ_API_KEY is not set", hint="Set GROQ_API_KEY environment variable")
     else:
         logger.info("startup_ok", groq_key_prefix=groq_key[:8] + "...")
     logger.info("startup_complete", allowed_origins=ALLOWED_ORIGINS)
@@ -54,7 +53,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     app = FastAPI(
         title="AutoInsight API",
-        description="Instant data insights",
+        description="Instant AI-powered data insights from CSV files.",
         version="1.2.0",
         lifespan=lifespan,
     )
@@ -65,28 +64,29 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=ALLOWED_ORIGINS,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Content-Type", "X-Session-Id"],
         allow_credentials=False,
     )
 
     app.include_router(router, prefix="/api")
 
     @app.get("/")
-    async def root():
+    async def root(request: Request):
+        base = str(request.base_url).rstrip("/")
         return {
             "name": "AutoInsight API",
             "version": app.version,
             "status": "running",
-            "docs": "http://localhost:8000/docs",
-            "health": "http://localhost:8000/health",
+            "docs": f"{base}/docs",
+            "health": f"{base}/health",
             "api_prefix": "/api",
         }
 
     @app.exception_handler(Exception)
-    async def err(request: Request, exc: Exception):
-        logger.error("unhandled", path=request.url.path, error=str(exc))
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        logger.error("unhandled_exception", path=request.url.path, error=str(exc))
         return JSONResponse(
             status_code=500,
             content={"detail": "An unexpected error occurred."},
