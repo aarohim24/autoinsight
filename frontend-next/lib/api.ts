@@ -1,29 +1,66 @@
-// Relative path — routes through Next.js API proxy (app/api/*)
-// The proxy routes forward to BACKEND_URL (server-side Vercel env var)
+/**
+ * API client for AutoInsight.
+ * All requests route through the Next.js API proxy (app/api/*),
+ * which forwards to BACKEND_URL on the server side.
+ */
+
+import type {
+  UploadMeta,
+  AnalyzeResponse,
+  InsightResult,
+  QueryResult,
+} from "./types";
+
 const API_BASE = "/api";
-function h(sid?: string): HeadersInit {
-  const headers: Record<string,string> = {"Content-Type":"application/json"};
-  if (sid) headers["X-Session-Id"] = sid;
+
+function buildHeaders(sessionId?: string): HeadersInit {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (sessionId) {
+    headers["X-Session-Id"] = sessionId;
+  }
   return headers;
 }
-export async function uploadCSV(file: File) {
-  const form = new FormData(); form.append("file", file);
-  const res = await fetch(`${API_BASE}/upload-data`, {method:"POST",body:form});
-  if (!res.ok) { const e = await res.json(); throw new Error(e.detail||"Upload failed"); }
-  return res.json();
+
+async function parseResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { detail?: string }).detail ?? fallbackMessage);
+  }
+  return res.json() as Promise<T>;
 }
-export async function analyze(sid: string) {
-  const res = await fetch(`${API_BASE}/analyze`, {headers:h(sid)});
-  if (!res.ok) { const e = await res.json(); throw new Error(e.detail||"Analysis failed"); }
-  return res.json();
+
+export async function uploadCSV(file: File): Promise<UploadMeta> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/upload-data`, {
+    method: "POST",
+    body: form,
+  });
+  return parseResponse<UploadMeta>(res, "Upload failed");
 }
-export async function generateInsights(sid: string) {
-  const res = await fetch(`${API_BASE}/generate-insights`, {method:"POST",headers:h(sid)});
-  if (!res.ok) { const e = await res.json(); throw new Error(e.detail||"Failed"); }
-  return res.json();
+
+export async function analyze(sessionId: string): Promise<AnalyzeResponse> {
+  const res = await fetch(`${API_BASE}/analyze`, {
+    headers: buildHeaders(sessionId),
+  });
+  return parseResponse<AnalyzeResponse>(res, "Analysis failed");
 }
-export async function askQuestion(sid: string, question: string) {
-  const res = await fetch(`${API_BASE}/query`, {method:"POST",headers:h(sid),body:JSON.stringify({question})});
-  if (!res.ok) { const e = await res.json(); throw new Error(e.detail||"Failed"); }
-  return res.json();
+
+export async function generateInsights(sessionId: string): Promise<InsightResult> {
+  const res = await fetch(`${API_BASE}/generate-insights`, {
+    method: "POST",
+    headers: buildHeaders(sessionId),
+  });
+  return parseResponse<InsightResult>(res, "Failed to generate insights");
+}
+
+export async function askQuestion(sessionId: string, question: string): Promise<QueryResult> {
+  const res = await fetch(`${API_BASE}/query`, {
+    method: "POST",
+    headers: buildHeaders(sessionId),
+    body: JSON.stringify({ question }),
+  });
+  return parseResponse<QueryResult>(res, "Query failed");
 }

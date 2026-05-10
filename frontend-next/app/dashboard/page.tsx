@@ -4,10 +4,7 @@ import { useRouter } from "next/navigation";
 import { generateInsights, askQuestion } from "@/lib/api";
 import { BarChart, Bar, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
-interface Meta { session_id: string; filename: string; original_rows: number; loaded_rows: number; columns: string[]; sampled: boolean; }
-interface NumericStat { mean: number; median: number; std: number; min: number; max: number; missing_pct: number; skewness: number; }
-interface Summary { shape: { rows: number; columns: number }; numeric_columns: string[]; categorical_columns: string[]; numeric_stats: Record<string, NumericStat>; categorical_stats: Record<string, { unique: number; top_values: Record<string, number>; missing_pct: number }>; strong_correlations: { col1: string; col2: string; r: number }[]; trends: { column: string; direction: string; magnitude_pct: number }[]; missing_overview: Record<string, number>; }
-interface Insights { insights: string[]; possible_reasons: string[]; actionable_suggestions: string[]; }
+import type { UploadMeta, DataSummary, InsightResult, QueryResult } from "@/lib/types";
 
 const C = ["#00FF87","#0EA5E9","#F59E0B","#A78BFA","#F472B6","#34D399"];
 const AP = { stroke:"var(--text-3)", tick:{ fontSize:10, fontFamily:"var(--font-mono)", fill:"var(--text-3)" } };
@@ -23,15 +20,15 @@ function Spin() { return <svg className="spinner" width="16" height="16" viewBox
 
 export default function Dashboard() {
   const router = useRouter();
-  const [meta, setMeta] = useState<Meta|null>(null);
-  const [summary, setSummary] = useState<Summary|null>(null);
-  const [preview, setPreview] = useState<Record<string,any>[]>([]);
-  const [insights, setInsights] = useState<Insights|null>(null);
+  const [meta, setMeta] = useState<UploadMeta | null>(null);
+  const [summary, setSummary] = useState<DataSummary | null>(null);
+  const [preview, setPreview] = useState<Record<string, unknown>[]>([]);
+  const [insights, setInsights] = useState<InsightResult | null>(null);
   const [loadingI, setLoadingI] = useState(false);
   const [iErr, setIErr] = useState("");
   const [tab, setTab] = useState<"overview"|"charts"|"insights"|"ask">("overview");
   const [q, setQ] = useState("");
-  const [ans, setAns] = useState<{answer:string;confidence:string;caveat:string}|null>(null);
+  const [ans, setAns] = useState<QueryResult | null>(null);
   const [loadingA, setLoadingA] = useState(false);
   const [sNum, setSNum] = useState(0);
   const [sCat, setSCat] = useState(0);
@@ -49,7 +46,7 @@ export default function Dashboard() {
   const doInsights = async () => {
     if (!meta) return;
     setLoadingI(true); setIErr("");
-    try { const d = await generateInsights(meta.session_id); if (d._cached !== undefined) delete d._cached; setInsights(d); setTab("insights"); }
+    try { const d = await generateInsights(meta.session_id); setInsights(d); setTab("insights"); }
     catch (e: any) { setIErr(e.message); }
     finally { setLoadingI(false); }
   };
