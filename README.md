@@ -1,22 +1,11 @@
-# AutoInsight ✦
+# AutoInsight
 
-![CI](https://github.com/YOUR_USERNAME/autoinsight/actions/workflows/ci.yml/badge.svg)
-![Coverage](https://codecov.io/gh/YOUR_USERNAME/autoinsight/branch/main/graph/badge.svg)
+![CI](https://github.com/aarohim24/autoinsight/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 > **Upload any CSV. Get instant AI-powered insights.**
 > Production-grade data analysis tool for non-technical users — backed by Groq API.
-
----
-
-## 🚀 Quick Start
-
-New to this project? See the docs folder:
-- **[Quick Start](./docs/QUICK_START.md)** — Get running in 5 minutes
-- **[Setup Guide](./docs/SETUP_GUIDE.md)** — Detailed step-by-step setup
-- **[Deployment Guide](./docs/DEPLOYMENT.md)** — Deploy backend (Render, Fly.io, Heroku)
-- **[Fixes Applied](./docs/FIXES_APPLIED.md)** — Recent improvements & fixes
 
 ---
 
@@ -129,7 +118,7 @@ docker run -d -p 6379:6379 redis:7-alpine
 ./start.sh
 ```
 
-Open **http://localhost:8501** — upload `sample_data/sample_sales.csv` to try it immediately.
+Open **http://localhost:3000** — upload `sample_data/sample_sales.csv` to try it immediately.
 
 ### Docker Compose (production-like)
 
@@ -276,4 +265,3 @@ Cost, latency, and privacy. A 10k-row CSV at ~50 bytes/row is 500KB — roughly 
 ## License
 
 MIT
-# force redeploy
