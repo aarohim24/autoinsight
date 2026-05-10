@@ -35,8 +35,7 @@ jobs:
 
       - name: Run tests with coverage
         env:
-          ANTHROPIC_API_KEY: sk-ant-test-placeholder
-          ALLOWED_ORIGINS: http://localhost:8501
+          GROQ_API_KEY: gsk-test-placeholder
           REDIS_URL: redis://localhost:6379/0
           LOG_LEVEL: WARNING
         run: |
