@@ -64,7 +64,7 @@ def _parse_json(raw: str, fallback_key: str = "insights") -> dict:
 
 @retry(
     retry=retry_if_exception_type(
-        (httpx.TransientError, httpx.NetworkError, httpx.TimeoutException)
+        (httpx.TransportError, httpx.TimeoutException)
     ),
     stop=stop_after_attempt(4),
     wait=wait_exponential(multiplier=1, min=2, max=30),
