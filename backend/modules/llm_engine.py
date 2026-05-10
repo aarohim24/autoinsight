@@ -1,36 +1,60 @@
+"""
+LLM Engine for AutoInsight.
+Calls the Groq API with tenacity retry (4 attempts, exponential backoff 2-30s).
+All functions are async and fully typed.
+"""
+
 import json
 import os
 import re
+import traceback
+
+import httpx
 import structlog
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 logger = structlog.get_logger(__name__)
+
 MODEL = "llama-3.3-70b-versatile"
+_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+_REQUEST_TIMEOUT = 30.0
 
 
-def _get_api_key():
+def _get_api_key() -> str:
     key = os.environ.get("GROQ_API_KEY", "").strip()
     if not key:
-        raise RuntimeError("GROQ_API_KEY not set. Get free key at console.groq.com")
+        raise RuntimeError("GROQ_API_KEY not set. Get a free key at console.groq.com")
     return key
 
 
-def _build_summary_text(summary, filename):
-    lines = ["Dataset: " + filename]
-    shape = summary.get("shape", {})
-    lines.append("Shape: " + str(shape.get("rows")) + " rows x " + str(shape.get("columns")) + " columns")
+def _build_summary_text(summary: dict, filename: str) -> str:
+    lines = [
+        f"Dataset: {filename}",
+        "Shape: {rows} rows x {cols} columns".format(
+            rows=summary.get("shape", {}).get("rows"),
+            cols=summary.get("shape", {}).get("columns"),
+        ),
+    ]
     for col, s in list(summary.get("numeric_stats", {}).items())[:12]:
-        lines.append("  " + col + ": mean=" + str(s["mean"]) + ", median=" + str(s["median"]) + ", missing=" + str(s["missing_pct"]) + "%")
+        lines.append(
+            f"  {col}: mean={s['mean']}, median={s['median']}, missing={s['missing_pct']}%"
+        )
     for col, s in list(summary.get("categorical_stats", {}).items())[:8]:
         top = list(s["top_values"].keys())[:3]
-        lines.append("  " + col + ": " + str(s["unique"]) + " unique, top: " + str(top))
+        lines.append(f"  {col}: {s['unique']} unique, top: {top}")
     for c in summary.get("strong_correlations", [])[:6]:
-        lines.append("  " + c["col1"] + " <-> " + c["col2"] + ": r=" + str(c["r"]))
+        lines.append(f"  {c['col1']} <-> {c['col2']}: r={c['r']}")
     for t in summary.get("trends", [])[:6]:
-        lines.append("  " + t["column"] + ": " + t["direction"] + " (" + str(round(t["magnitude_pct"], 1)) + "%)")
+        lines.append(f"  {t['column']}: {t['direction']} ({round(t['magnitude_pct'], 1)}%)")
     return "\n".join(lines)
 
 
-def _parse_json(raw, fallback_key="insights"):
+def _parse_json(raw: str, fallback_key: str = "insights") -> dict:
     clean = re.sub(r"```(?:json)?|```", "", raw).strip()
     try:
         return json.loads(clean)
@@ -38,19 +62,21 @@ def _parse_json(raw, fallback_key="insights"):
         return {fallback_key: [raw], "possible_reasons": [], "actionable_suggestions": []}
 
 
-async def _call_groq(system, user):
-    import httpx
-    import json
-    import traceback
-    
+@retry(
+    retry=retry_if_exception_type(
+        (httpx.TransientError, httpx.NetworkError, httpx.TimeoutException)
+    ),
+    stop=stop_after_attempt(4),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    reraise=True,
+)
+async def _call_groq(system: str, user: str) -> str:
     api_key = _get_api_key()
-    
-    logger.info("groq_call_start", model=MODEL, method="http_api")
-    
+    logger.info("groq_call_start", model=MODEL)
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
             response = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                _GROQ_URL,
                 headers={
                     "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json",
@@ -66,32 +92,30 @@ async def _call_groq(system, user):
                 },
             )
             response.raise_for_status()
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
-        
+            text: str = response.json()["choices"][0]["message"]["content"]
         logger.info("groq_call_done", chars=len(text))
         return text
-    except Exception as e:
-        logger.error("groq_call_failed", error=str(e), traceback=traceback.format_exc())
+    except Exception:
+        logger.error("groq_call_failed", traceback=traceback.format_exc())
         raise
 
 
-async def generate_insights(summary, filename):
+async def generate_insights(summary: dict, filename: str) -> dict:
     text = _build_summary_text(summary, filename)
     system = (
         "You are an expert data analyst. Respond ONLY with valid JSON, no markdown:\n"
         '{"insights":["..."],"possible_reasons":["..."],"actionable_suggestions":["..."]}\n'
         "insights: 3-5 key findings. possible_reasons: 2-3 explanations. actionable_suggestions: 2-3 steps."
     )
-    raw = await _call_groq(system, "Dataset summary:\n" + text)
+    raw = await _call_groq(system, f"Dataset summary:\n{text}")
     return _parse_json(raw, "insights")
 
 
-async def answer_nl_query(question, summary, filename):
+async def answer_nl_query(question: str, summary: dict, filename: str) -> dict:
     text = _build_summary_text(summary, filename)
     system = (
         "You are a data analyst. Respond ONLY with valid JSON, no markdown:\n"
         '{"answer":"...","confidence":"high|medium|low","caveat":"..."}'
     )
-    raw = await _call_groq(system, "Dataset:\n" + text + "\n\nQuestion: " + question)
+    raw = await _call_groq(system, f"Dataset:\n{text}\n\nQuestion: {question}")
     return _parse_json(raw, "answer")
