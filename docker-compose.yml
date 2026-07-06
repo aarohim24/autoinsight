@@ -22,7 +22,7 @@ services:
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
-      ALLOWED_ORIGINS: http://localhost:3000
+      ALLOWED_ORIGINS: "http://localhost:3000,https://autoinsight-frontend.onrender.com"
     depends_on:
       redis:
         condition: service_healthy
@@ -38,12 +38,12 @@ services:
       context: .
       target: frontend
       args:
-        BACKEND_URL: http://backend:8000/api
+        BACKEND_URL: http://backend:8000
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      BACKEND_URL: http://backend:8000/api
+      BACKEND_URL: http://backend:8000
     depends_on:
       backend:
         condition: service_healthy

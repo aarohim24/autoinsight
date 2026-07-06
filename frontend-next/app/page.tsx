@@ -5,12 +5,6 @@ import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import { uploadCSV, analyze } from "@/lib/api";
 
-const FEATURES = [
-  { icon: "⚡", title: "Instant Stats", desc: "Summary stats, correlations & trends in seconds" },
-  { icon: "🤖", title: "AI Insights",  desc: "Groq-powered LLM finds patterns you'd miss" },
-  { icon: "💬", title: "Ask Anything", desc: "Natural language Q&A about your dataset" },
-  { icon: "🔒", title: "Private",      desc: "Session-isolated, auto-expires after 1 hour" },
-];
 
 const STATS = [
   { value: "CSV",  label: "Input format" },
@@ -328,41 +322,6 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Feature grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 10,
-              marginTop: 24,
-            }}
-          >
-            {FEATURES.map(({ icon, title, desc }) => (
-              <div
-                key={title}
-                className="panel"
-                style={{ padding: "14px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}
-              >
-                <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>
-                <div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 11,
-                      color: "var(--text)",
-                      fontWeight: 500,
-                      marginBottom: 3,
-                    }}
-                  >
-                    {title}
-                  </div>
-                  <div style={{ color: "var(--text-3)", fontSize: "0.78rem", lineHeight: 1.5 }}>
-                    {desc}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </main>

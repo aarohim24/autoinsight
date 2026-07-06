@@ -1,4 +1,12 @@
 runtime: python-3.12
 build-command: pip cache purge && pip install --no-cache-dir -r requirements.txt
 start: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-# Force rebuild
+
+# Environment variables to set in the Render dashboard:
+#
+# Required:
+#   GROQ_API_KEY=gsk-...
+#   ALLOWED_ORIGINS=https://<your-frontend>.onrender.com
+#
+# Optional (Redis):
+#   REDIS_URL=redis://...

@@ -1,7 +1,7 @@
 /**
  * API client for AutoInsight.
- * All requests route through the Next.js API proxy (app/api/*),
- * which forwards to BACKEND_URL on the server side.
+ * All fetch calls hit /api/* which Next.js rewrites to the backend via next.config.ts.
+ * No server-side proxy files needed — the rewrite is handled transparently.
  */
 
 import type {
