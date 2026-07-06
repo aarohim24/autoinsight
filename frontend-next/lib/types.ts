@@ -18,14 +18,23 @@ export interface NumericStat {
   std: number | null;
   min: number | null;
   max: number | null;
+  missing: number;
   missing_pct: number;
   skewness: number | null;
 }
 
 export interface CategoricalStat {
   unique: number;
-  top_values: Record<string, number>;
+  missing: number;
   missing_pct: number;
+  top_values: Record<string, number>;
+}
+
+export interface OutlierInfo {
+  count: number;
+  pct: number;
+  lower_fence: number;
+  upper_fence: number;
 }
 
 export interface DataSummary {
@@ -36,6 +45,8 @@ export interface DataSummary {
   categorical_stats: Record<string, CategoricalStat>;
   strong_correlations: { col1: string; col2: string; r: number }[];
   trends: { column: string; direction: string; magnitude_pct: number }[];
+  outliers: Record<string, OutlierInfo>;
+  data_quality_score: number;
   missing_overview: Record<string, number>;
 }
 
@@ -50,10 +61,17 @@ export interface InsightResult {
   insights: string[];
   possible_reasons: string[];
   actionable_suggestions: string[];
+  _cached?: boolean;
 }
 
 export interface QueryResult {
   answer: string;
   confidence: "high" | "medium" | "low";
   caveat: string;
+}
+
+export interface SessionStatus {
+  active: boolean;
+  session_id: string;
+  ttl_seconds: number | null;
 }

@@ -147,7 +147,7 @@ def compute_summary(session_id: str) -> dict:
         # Try to parse object cols that look like dates
         for col in categorical_cols[:3]:
             try:
-                parsed = pd.to_datetime(df[col], infer_datetime_format=True, errors="coerce")
+                parsed = pd.to_datetime(df[col], format="mixed", errors="coerce")
                 if parsed.notna().mean() > 0.8:
                     df_for_trends = df_for_trends.sort_values(col).reset_index(drop=True)
                     break
@@ -174,6 +174,32 @@ def compute_summary(session_id: str) -> dict:
                 "magnitude_pct": round(float(pct), 2),
             })
 
+    # Outlier detection — IQR method per numeric column
+    outliers: dict = {}
+    for col in numeric_cols:
+        s = df[col].dropna()
+        if len(s) < 4:
+            continue
+        q1, q3 = float(s.quantile(0.25)), float(s.quantile(0.75))
+        iqr = q3 - q1
+        if iqr == 0:
+            continue
+        lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        n_out = int(((s < lower) | (s > upper)).sum())
+        if n_out > 0:
+            outliers[col] = {
+                "count":       n_out,
+                "pct":         round(n_out / len(s) * 100, 2),
+                "lower_fence": round(lower, 4),
+                "upper_fence": round(upper, 4),
+            }
+
+    # Data quality score: 0–100 (higher = cleaner)
+    missing_penalty  = min(50, sum(v["missing_pct"] for v in numeric_stats.values()) / max(len(numeric_stats), 1))
+    outlier_penalty  = min(30, sum(v["pct"] for v in outliers.values()) / max(len(outliers), 1))
+    skew_penalty     = min(20, sum(abs(v["skewness"] or 0) for v in numeric_stats.values()) / max(len(numeric_stats), 1) * 2)
+    data_quality_score = round(max(0, 100 - missing_penalty - outlier_penalty - skew_penalty), 1)
+
     return {
         "shape":               {"rows": len(df), "columns": len(df.columns)},
         "numeric_columns":     numeric_cols,
@@ -183,6 +209,8 @@ def compute_summary(session_id: str) -> dict:
         "correlation_matrix":  corr_matrix,
         "strong_correlations": strong_corrs,
         "trends":              trends,
+        "outliers":            outliers,
+        "data_quality_score":  data_quality_score,
         "missing_overview": {
             col: int(df[col].isna().sum())
             for col in df.columns if df[col].isna().any()

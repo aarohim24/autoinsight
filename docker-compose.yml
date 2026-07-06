@@ -22,7 +22,7 @@ services:
     env_file: .env
     environment:
       REDIS_URL: redis://redis:6379/0
-      ALLOWED_ORIGINS: http://localhost:8501
+      ALLOWED_ORIGINS: http://localhost:3000
     depends_on:
       redis:
         condition: service_healthy
@@ -37,11 +37,13 @@ services:
     build:
       context: .
       target: frontend
+      args:
+        BACKEND_URL: http://backend:8000/api
     restart: unless-stopped
     ports:
-      - "8501:8501"
+      - "3000:3000"
     environment:
-      API_BASE_URL: http://backend:8000/api
+      BACKEND_URL: http://backend:8000/api
     depends_on:
       backend:
         condition: service_healthy

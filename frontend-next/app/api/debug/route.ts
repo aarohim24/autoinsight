@@ -11,8 +11,8 @@ export async function GET() {
     });
     const ct = res.headers.get("content-type") || "";
     health = ct.includes("application/json") ? await res.json() : await res.text();
-  } catch (err: any) {
-    error = err.message;
+  } catch (err: unknown) {
+    error = (err as Error).message;
   }
   return NextResponse.json({ backend_url: BACKEND, health, error });
 }

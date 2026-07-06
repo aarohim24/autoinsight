@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
       body: form,
     });
     return NextResponse.json(data, { status });
-  } catch (err: any) {
-    return NextResponse.json({ detail: err.message }, { status: 502 });
+  } catch (err: unknown) {
+    return NextResponse.json({ detail: (err as Error).message }, { status: 502 });
   }
 }
 

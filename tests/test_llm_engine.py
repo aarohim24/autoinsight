@@ -93,7 +93,7 @@ class TestGenerateInsights:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "content": [{"text": json.dumps(VALID_INSIGHTS)}]
+            "choices": [{"message": {"content": json.dumps(VALID_INSIGHTS)}}]
         }
         mock_response.raise_for_status = MagicMock()
 
@@ -116,7 +116,9 @@ class TestGenerateInsights:
         mock_ok = MagicMock()
         mock_ok.status_code = 200
         mock_ok.raise_for_status = MagicMock()
-        mock_ok.json.return_value = {"content": [{"text": json.dumps(VALID_INSIGHTS)}]}
+        mock_ok.json.return_value = {
+            "choices": [{"message": {"content": json.dumps(VALID_INSIGHTS)}}]
+        }
 
         call_count = 0
 

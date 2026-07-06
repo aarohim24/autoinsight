@@ -1,9 +1,8 @@
 """
 Tests for cache module — covers both memory and Redis paths.
 """
-import sys, os
-sys.path.insert(0, "/home/claude/autoinsight")
-os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test")
+import os
+os.environ.setdefault("GROQ_API_KEY", "gsk-test-key")
 
 import json
 import pytest
@@ -17,6 +16,9 @@ VALUE_A    = {"insights": ["Revenue is stable"], "possible_reasons": [], "action
 class TestMemoryCache:
     def setup_method(self):
         from backend.modules import cache
+        # Force memory mode
+        cache._redis_client = None
+        cache._redis_checked = True
         cache._mem_cache.clear()
 
     def test_miss_returns_none(self):
@@ -65,8 +67,7 @@ class TestRedisCache:
         mock_redis.get.return_value = json.dumps(VALUE_A)
 
         from backend.modules import cache
-        # _redis_client being non-None is the Redis-enabled flag
-        with patch.object(cache, "_redis_client", mock_redis):
+        with patch.object(cache, "_get_redis", return_value=mock_redis):
             cache.set("insights", SUMMARY_A, VALUE_A)
             result = cache.get("insights", SUMMARY_A)
 
@@ -78,7 +79,7 @@ class TestRedisCache:
         mock_redis.get.return_value = None
 
         from backend.modules import cache
-        with patch.object(cache, "_redis_client", mock_redis):
+        with patch.object(cache, "_get_redis", return_value=mock_redis):
             result = cache.get("insights", SUMMARY_A)
 
         assert result is None
@@ -87,7 +88,7 @@ class TestRedisCache:
         mock_redis = MagicMock()
 
         from backend.modules import cache
-        with patch.object(cache, "_redis_client", mock_redis), \
+        with patch.object(cache, "_get_redis", return_value=mock_redis), \
              patch.object(cache, "_CACHE_TTL", 1800):
             cache.set("insights", SUMMARY_A, VALUE_A)
 

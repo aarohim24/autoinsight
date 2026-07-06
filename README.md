@@ -130,7 +130,7 @@ docker compose up --build
 ```
 
 Services:
-- Frontend → http://localhost:8501
+- Frontend → http://localhost:3000
 - API → http://localhost:8000
 - API docs → http://localhost:8000/docs
 
@@ -144,9 +144,10 @@ returned by `POST /api/upload-data`.
 | Method | Endpoint | Rate limit | Description |
 |--------|----------|------------|-------------|
 | `POST` | `/api/upload-data` | 10/min | Upload CSV, get `session_id` |
-| `GET` | `/api/analyze` | 30/min | Summary stats + data preview |
+| `GET` | `/api/analyze` | 30/min | Summary stats, outlier detection + data preview |
 | `POST` | `/api/generate-insights` | 5/min | LLM-generated insights (cached) |
 | `POST` | `/api/query` | 10/min | Natural language Q&A |
+| `GET` | `/api/session/status` | — | Session liveness + TTL remaining |
 | `DELETE` | `/api/session` | — | Explicitly delete session data |
 | `GET` | `/health` | — | Health check + API key status |
 
@@ -183,9 +184,10 @@ pytest -k "test_upload"       # by name pattern
 ```
 
 Test coverage:
-- `test_data_processor.py` — 15 unit tests: CSV loading, file limits, stats accuracy, edge cases
-- `test_llm_engine.py`     — 12 unit tests: API key, summary builder, JSON parsing, retry logic
-- `test_api_routes.py`     — 13 integration tests: all endpoints, error paths, cache behaviour
+- `test_data_processor.py` — unit tests: CSV loading, file limits, stats accuracy, edge cases
+- `test_llm_engine.py`     — unit tests: API key, summary builder, JSON parsing, retry logic
+- `test_api_routes.py`     — integration tests: all endpoints, error paths, cache behaviour
+- `test_edge_cases.py`     — edge case tests: unicode columns, outlier detection, data quality score, session TTL
 
 No real API calls are made in tests — httpx and session store are fully mocked.
 

@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import uuid
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -69,6 +70,13 @@ def create_app() -> FastAPI:
         allow_headers=["Content-Type", "X-Session-Id"],
         allow_credentials=False,
     )
+
+    @app.middleware("http")
+    async def add_request_id(request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
 
     app.include_router(router, prefix="/api")
 

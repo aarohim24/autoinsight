@@ -9,6 +9,7 @@ import type {
   AnalyzeResponse,
   InsightResult,
   QueryResult,
+  SessionStatus,
 } from "./types";
 
 const API_BASE = "/api";
@@ -63,4 +64,18 @@ export async function askQuestion(sessionId: string, question: string): Promise<
     body: JSON.stringify({ question }),
   });
   return parseResponse<QueryResult>(res, "Query failed");
+}
+
+export async function getSessionStatus(sessionId: string): Promise<SessionStatus> {
+  const res = await fetch(`${API_BASE}/session/status`, {
+    headers: buildHeaders(sessionId),
+  });
+  return parseResponse<SessionStatus>(res, "Session status check failed");
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await fetch(`${API_BASE}/session`, {
+    method: "DELETE",
+    headers: buildHeaders(sessionId),
+  });
 }

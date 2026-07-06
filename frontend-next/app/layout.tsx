@@ -1,6 +1,26 @@
 import type { Metadata } from "next";
 import "./globals.css";
-export const metadata: Metadata = { title: "AutoInsight", description: "Instant data analysis" };
+
+export const metadata: Metadata = {
+  title: "AutoInsight — Instant AI-powered CSV analysis",
+  description:
+    "Upload any CSV and get summary statistics, interactive charts, outlier detection, and AI-generated insights in seconds. Powered by Groq LLM.",
+  keywords: ["data analysis", "CSV", "AI insights", "statistics", "Groq", "LLM"],
+  openGraph: {
+    title: "AutoInsight",
+    description: "Instant AI-powered data insights from CSV files.",
+    type: "website",
+  },
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body>{children}</body></html>;
+  return (
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
 }

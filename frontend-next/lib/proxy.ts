@@ -13,8 +13,8 @@ export async function proxyFetch(
   let res: Response;
   try {
     res = await fetch(url, init);
-  } catch (err: any) {
-    throw new Error(`Backend unreachable (${BACKEND}): ${err.message}`);
+  } catch (err: unknown) {
+    throw new Error(`Backend unreachable (${BACKEND}): ${(err as Error).message}`);
   }
 
   const contentType = res.headers.get("content-type") || "";

@@ -37,8 +37,8 @@ Thumbs.db
 # Logs
 *.log
 
-# Docker
-.dockerignore
+# Data uploads (never commit user data)
+data/
 
 # Next.js
 .next/

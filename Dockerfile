@@ -1,22 +1,39 @@
-FROM python:3.12-slim
+# ── Stage 1: Backend ──────────────────────────────────────────────────────
+FROM python:3.12-slim AS backend
+
 WORKDIR /app
 
-# Ensure clean state
-RUN find /app -name "*.pyc" -delete
-RUN find /app -name "__pycache__" -type d -delete
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && \
-    find /usr/local/lib/python3.12 -name "*.pyc" -delete && \
-    find /usr/local/lib/python3.12 -name "__pycache__" -type d -delete
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ backend/
 COPY sample_data/ sample_data/
 
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-ENV PYTHONDONTWRITEBYTECODE=1
-
 COPY start_prod.sh /app/start_prod.sh
 RUN chmod +x /app/start_prod.sh
+
 CMD ["/app/start_prod.sh"]
+
+
+# ── Stage 2: Frontend ─────────────────────────────────────────────────────
+FROM node:20-alpine AS frontend
+
+WORKDIR /app
+
+COPY frontend-next/package*.json ./
+RUN npm ci --prefer-offline
+
+COPY frontend-next/ .
+
+ARG BACKEND_URL=http://backend:8000/api
+ENV BACKEND_URL=${BACKEND_URL}
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "start"]

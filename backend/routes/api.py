@@ -163,9 +163,20 @@ async def natural_language_query(
     return result
 
 
-# ── DELETE /session ────────────────────────────────────────────────────────
-
 @router.delete("/session")
 async def delete_session(session_id: str = Depends(get_session)):
     store.delete_session(session_id)
     return {"status": "ok", "message": "Session deleted."}
+
+
+# ── GET /session/status ────────────────────────────────────────────────────
+
+@router.get("/session/status")
+async def session_status(session_id: str = Depends(get_session)):
+    """Return session liveness and remaining TTL (for frontend expiry countdown)."""
+    ttl = store.get_session_ttl(session_id)
+    return {
+        "active": True,
+        "session_id": session_id,
+        "ttl_seconds": ttl,
+    }

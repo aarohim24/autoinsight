@@ -1,0 +1,45 @@
+# Exclude everything we don't need in the Docker image
+
+# Version control
+.git
+.gitignore
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+
+# Test artifacts
+tests/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Development docs
+docs/
+scripts/
+
+# Frontend build artifacts (only copy source)
+frontend-next/.next/
+frontend-next/node_modules/
+
+# Local env files
+.env
+.env.local
+frontend-next/.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# CI
+.github/
