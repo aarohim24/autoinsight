@@ -190,7 +190,12 @@ body {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
-.dot-amber { background: var(--warn); }
+.dot-amber {
+  background: var(--warn);
+  box-shadow: 0 0 6px var(--warn);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+.dot-grey  { background: var(--text-3); }
 .dot-red   { background: var(--danger); }
 
 /* ── Data Table ───────────────────────────────────────────────────────────── */

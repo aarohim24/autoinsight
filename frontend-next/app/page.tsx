@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import { uploadCSV, analyze } from "@/lib/api";
@@ -51,7 +51,7 @@ function Spinner() {
 type UploadStep = "uploading" | "analysing" | "ready";
 
 const STEP_LABELS: Record<UploadStep, string> = {
-  uploading: "Uploading CSV...",
+  uploading: "Uploading CSV... (may take ~30s on first visit)",
   analysing: "Running analysis...",
   ready:     "Done!",
 };
@@ -60,8 +60,18 @@ export default function HomePage() {
   const router = useRouter();
   const [uploadStep, setUploadStep] = useState<UploadStep | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [apiStatus, setApiStatus] = useState<"checking" | "ready" | "warming">("checking");
 
   const isLoading = uploadStep !== null;
+
+  // Pre-warm the Render backend on page load so it's ready when the user uploads.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/health", { signal: controller.signal })
+      .then((r) => setApiStatus(r.ok ? "ready" : "warming"))
+      .catch(() => setApiStatus("warming"));
+    return () => controller.abort();
+  }, []);
 
   const onDrop = useCallback(
     async (files: File[]) => {
@@ -122,9 +132,21 @@ export default function HomePage() {
             AutoInsight
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div className="dot dot-green" />
+            <div
+              className={
+                apiStatus === "ready"
+                  ? "dot dot-green"
+                  : apiStatus === "warming"
+                  ? "dot dot-amber"
+                  : "dot dot-grey"
+              }
+            />
             <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-3)" }}>
-              api ready
+              {apiStatus === "ready"
+                ? "api ready"
+                : apiStatus === "warming"
+                ? "server warming up…"
+                : "checking…"}
             </span>
           </div>
         </div>

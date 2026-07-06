@@ -3,8 +3,8 @@
  * The Next.js server proxies browser calls to the Python backend.
  *
  * Set BACKEND_URL in your deployment environment:
- *   Vercel:      https://autoinsight-lc8i.onrender.com/api
- *   Local dev:   http://localhost:8000/api
+ *   Vercel:    https://autoinsight-lc8i.onrender.com/api
+ *   Local dev: http://localhost:8000/api
  */
 
 // Falls back to the known production Render URL so Vercel works even
@@ -16,16 +16,42 @@ export const BACKEND = (
     : "https://autoinsight-lc8i.onrender.com/api"
 ).replace(/\/$/, "");
 
+/**
+ * Fetch with automatic retry on network errors (e.g. Render cold start).
+ * Retries up to `maxRetries` times with an exponential backoff.
+ */
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = 3,
+  baseDelayMs = 3000
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, cache: "no-store" });
+      return res;
+    } catch (err: unknown) {
+      lastErr = err;
+      if (attempt < maxRetries) {
+        // Exponential backoff: 3s, 6s, 12s
+        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export async function proxyFetch(
   url: string,
   init?: RequestInit
 ): Promise<{ data: unknown; status: number }> {
   let res: Response;
   try {
-    res = await fetch(url, { ...init, cache: "no-store" });
+    res = await fetchWithRetry(url, init ?? {});
   } catch (err: unknown) {
     throw new Error(
-      `Backend unreachable (${BACKEND}): ${(err as Error).message}`
+      `Backend unreachable — the server may be starting up, please try again in 30 seconds. (${(err as Error).message})`
     );
   }
 
