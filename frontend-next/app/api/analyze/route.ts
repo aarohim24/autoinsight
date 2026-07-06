@@ -1,3 +1,4 @@
+export const maxDuration = 60; // Allow up to 60s for Render cold start
 import { NextRequest, NextResponse } from "next/server";
 import { BACKEND, proxyFetch } from "@/lib/proxy";
 
