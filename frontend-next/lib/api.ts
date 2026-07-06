@@ -1,7 +1,12 @@
 /**
  * API client for AutoInsight.
- * All fetch calls hit /api/* which Next.js rewrites to the backend via next.config.ts.
- * No server-side proxy files needed — the rewrite is handled transparently.
+ *
+ * The browser calls the backend directly using NEXT_PUBLIC_API_URL.
+ * No server-side proxy or rewrites needed.
+ *
+ * Set NEXT_PUBLIC_API_URL in your environment:
+ *   - Local dev:  http://localhost:8000/api
+ *   - Production: https://autoinsight-lc8i.onrender.com/api
  */
 
 import type {
@@ -12,7 +17,10 @@ import type {
   SessionStatus,
 } from "./types";
 
-const API_BASE = "/api";
+// Trim trailing slash so `/api//upload-data` never happens
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
+).replace(/\/$/, "");
 
 function buildHeaders(sessionId?: string): HeadersInit {
   const headers: Record<string, string> = {
@@ -26,8 +34,14 @@ function buildHeaders(sessionId?: string): HeadersInit {
 
 async function parseResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { detail?: string }).detail ?? fallbackMessage);
+    let detail = fallbackMessage;
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // ignore JSON parse failure — keep fallbackMessage
+    }
+    throw new Error(detail);
   }
   return res.json() as Promise<T>;
 }
@@ -38,6 +52,7 @@ export async function uploadCSV(file: File): Promise<UploadMeta> {
   const res = await fetch(`${API_BASE}/upload-data`, {
     method: "POST",
     body: form,
+    // Do NOT set Content-Type — browser must set it with the multipart boundary
   });
   return parseResponse<UploadMeta>(res, "Upload failed");
 }

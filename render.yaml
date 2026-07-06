@@ -2,11 +2,15 @@ runtime: python-3.12
 build-command: pip cache purge && pip install --no-cache-dir -r requirements.txt
 start: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
 
-# Environment variables to set in the Render dashboard:
+# ── Render environment variables (set in the Render dashboard) ──────────────
 #
-# Required:
-#   GROQ_API_KEY=gsk-...
-#   ALLOWED_ORIGINS=https://<your-frontend>.onrender.com
+# Backend service:
+#   GROQ_API_KEY         = gsk-...
+#   ALLOWED_ORIGINS      = https://<your-frontend>.onrender.com
+#   REDIS_URL            = redis://...   (optional — falls back to in-memory)
 #
-# Optional (Redis):
-#   REDIS_URL=redis://...
+# Frontend service (Web Service, not Static Site):
+#   Build command:  cd frontend-next && npm ci && npm run build
+#   Start command:  cd frontend-next && npm start
+#   Environment:
+#     NEXT_PUBLIC_API_URL = https://<your-backend>.onrender.com/api
