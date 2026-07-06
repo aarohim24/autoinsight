@@ -1,39 +1,37 @@
 /**
  * Shared proxy helper for Next.js API routes.
- * The Next.js server proxies browser calls to the Python backend.
  *
- * Set BACKEND_URL in your deployment environment:
- *   Vercel:    https://autoinsight-lc8i.onrender.com/api
- *   Local dev: http://localhost:8000/api
+ * REQUIRED: Set BACKEND_URL in your deployment environment.
+ *   Vercel dashboard → Settings → Environment Variables:
+ *     BACKEND_URL = https://<your-render-backend>.onrender.com/api
+ *
+ *   Local dev (.env.local):
+ *     BACKEND_URL = http://localhost:8000/api
  */
 
-// Falls back to the known production Render URL so Vercel works even
-// if the env var was accidentally set to the Docker-internal hostname.
-export const BACKEND = (
-  process.env.BACKEND_URL &&
-  !process.env.BACKEND_URL.startsWith("http://backend")
-    ? process.env.BACKEND_URL
-    : "https://autoinsight-lc8i.onrender.com/api"
-).replace(/\/$/, "");
+if (
+  !process.env.BACKEND_URL ||
+  process.env.BACKEND_URL.startsWith("http://backend")
+) {
+  console.error(
+    "[proxy] WARNING: BACKEND_URL is not set or is a Docker-internal hostname. " +
+    "Set BACKEND_URL to your Render backend URL in Vercel environment variables."
+  );
+}
 
-const RETRY_DELAY_MS = 6000; // 6s between retries
-const MAX_RETRIES    = 7;    // 7 × 6s = 42s max wait — within Vercel's 60s maxDuration
+export const BACKEND = (process.env.BACKEND_URL || "http://localhost:8000/api")
+  .replace(/\/$/, "");
 
-/**
- * Sleep helper.
- */
+const RETRY_DELAY_MS = 6000;
+const MAX_RETRIES    = 7; // 7 × 6s = 42s — within Vercel's 60s maxDuration
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Proxy a request to the backend, retrying on 502 (Render cold-start gateway errors).
- * Render returns an HTML 502 page instantly while the app container is booting.
- * We keep retrying until the container is ready or we run out of time.
- */
 export async function proxyFetch(
   url: string,
   init?: RequestInit
 ): Promise<{ data: unknown; status: number }> {
-  let lastError = "Unknown error";
+  let lastError = "Server unavailable";
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     let res: Response;
@@ -41,29 +39,28 @@ export async function proxyFetch(
     try {
       res = await fetch(url, { ...init, cache: "no-store" });
     } catch (err: unknown) {
-      // True network failure (DNS, connection refused etc.) — no point retrying
       throw new Error(
-        `The server is starting up — please wait a moment and try again. (${(err as Error).message})`
+        `Cannot reach backend — please wait 30 seconds and try again. (${(err as Error).message})`
       );
     }
 
-    // 502 from Render's gateway = backend container still booting. Retry.
+    // 502/503 = Render gateway responding while backend container is booting. Retry.
     if (res.status === 502 || res.status === 503) {
-      lastError = `Service unavailable (${res.status}) — server is starting up`;
+      lastError = `Server is starting up (${res.status})`;
       if (attempt < MAX_RETRIES) {
         await sleep(RETRY_DELAY_MS);
         continue;
       }
-      throw new Error(
-        `The server took too long to start. Please wait 30 seconds and try again.`
-      );
+      throw new Error("Server took too long to start. Please wait 30 seconds and try again.");
     }
 
     const contentType = res.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       const text = await res.text();
+      // Likely pointed at wrong URL (e.g. a frontend) — log to help debug
+      console.error(`[proxy] Non-JSON from ${url} (status ${res.status}):`, text.slice(0, 300));
       throw new Error(
-        `Unexpected response (status ${res.status}): ${text.slice(0, 200)}`
+        `Unexpected response from backend (status ${res.status}). Check BACKEND_URL environment variable.`
       );
     }
 
