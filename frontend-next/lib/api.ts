@@ -1,12 +1,9 @@
 /**
  * API client for AutoInsight.
  *
- * The browser calls the backend directly using NEXT_PUBLIC_API_URL.
- * No server-side proxy or rewrites needed.
- *
- * Set NEXT_PUBLIC_API_URL in your environment:
- *   - Local dev:  http://localhost:8000/api
- *   - Production: https://autoinsight-lc8i.onrender.com/api
+ * Browser calls relative /api/* paths.
+ * Next.js route handlers (app/api/*) proxy those server-side to the backend.
+ * This avoids CORS entirely and works on Vercel, local dev, and Docker.
  */
 
 import type {
@@ -17,10 +14,8 @@ import type {
   SessionStatus,
 } from "./types";
 
-// Trim trailing slash so `/api//upload-data` never happens
-const API_BASE = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
-).replace(/\/$/, "");
+// Relative path — hits the Next.js proxy routes, never exposes the backend URL to the browser.
+const API_BASE = "/api";
 
 function buildHeaders(sessionId?: string): HeadersInit {
   const headers: Record<string, string> = {
@@ -39,7 +34,7 @@ async function parseResponse<T>(res: Response, fallbackMessage: string): Promise
       const body = await res.json();
       if (typeof body?.detail === "string") detail = body.detail;
     } catch {
-      // ignore JSON parse failure — keep fallbackMessage
+      // ignore — keep fallbackMessage
     }
     throw new Error(detail);
   }
@@ -52,7 +47,7 @@ export async function uploadCSV(file: File): Promise<UploadMeta> {
   const res = await fetch(`${API_BASE}/upload-data`, {
     method: "POST",
     body: form,
-    // Do NOT set Content-Type — browser must set it with the multipart boundary
+    // No Content-Type header — browser sets multipart/form-data with boundary automatically
   });
   return parseResponse<UploadMeta>(res, "Upload failed");
 }
@@ -82,7 +77,7 @@ export async function askQuestion(sessionId: string, question: string): Promise<
 }
 
 export async function getSessionStatus(sessionId: string): Promise<SessionStatus> {
-  const res = await fetch(`${API_BASE}/session/status`, {
+  const res = await fetch(`${API_BASE}/session`, {
     headers: buildHeaders(sessionId),
   });
   return parseResponse<SessionStatus>(res, "Session status check failed");
