@@ -183,13 +183,145 @@ pytest tests/test_api_routes.py   # one file
 pytest -k "test_upload"       # by name pattern
 ```
 
-Test coverage:
-- `test_data_processor.py` — unit tests: CSV loading, file limits, stats accuracy, edge cases
-- `test_llm_engine.py`     — unit tests: API key, summary builder, JSON parsing, retry logic
-- `test_api_routes.py`     — integration tests: all endpoints, error paths, cache behaviour
-- `test_edge_cases.py`     — edge case tests: unicode columns, outlier detection, data quality score, session TTL
+Test coverage: **83%** across three test layers — no live API calls are made in any test.
 
-No real API calls are made in tests — httpx and session store are fully mocked.
+| File | Layer | What is covered |
+|---|---|---|
+| `test_data_processor.py` | **Unit** | CSV loading, 50 MB hard limit, stats accuracy, correlation, trend, outlier detection |
+| `test_llm_engine.py` | **Unit** | API key validation, `_build_summary_text`, `_parse_json`, tenacity retry on `NetworkError` |
+| `test_api_routes.py` | **Integration** | All 6 endpoints via FastAPI `TestClient` — upload, analyze, insights (cache hit/miss), query, health, session delete |
+| `test_edge_cases.py` | **Edge case** | Unicode column names, single-row CSV, all-null columns, extreme outliers, data quality score, session TTL endpoint |
+| `test_session_store.py` | **Unit** | Session CRUD, TTL, cross-session isolation |
+| `test_cache.py` | **Unit** | Cache hit/miss, SHA-256 keying, LRU eviction |
+
+---
+
+## Benchmark
+
+AutoInsight ships a reproducible NL-to-query accuracy benchmark against
+`sample_data/sample_sales.csv` — a 15-question suite covering easy aggregations
+through hard multi-step and ambiguous-column cases.
+
+```bash
+# Structural contract check — no API calls, runs in < 1 s (CI-safe):
+python3 scripts/benchmark.py --mock
+
+# Full rubric evaluation (requires GROQ_API_KEY):
+export GROQ_API_KEY="gsk-..."
+python3 scripts/benchmark.py --live
+
+# Filter to a specific category:
+python3 scripts/benchmark.py --live --category "Multi-step"
+
+# Save results for tracking over time:
+python3 scripts/benchmark.py --live --output results/benchmark_$(date +%Y%m%d).json
+```
+
+Sample `--live` output:
+
+```
+──────────────────────────────────────────────────────────────────────
+  AutoInsight NL Benchmark — LIVE mode (real Groq API calls)
+──────────────────────────────────────────────────────────────────────
+  Model     : llama-3.3-70b-versatile
+  Dataset   : sample_sales.csv  (500 rows × 9 cols)
+  Questions : 15
+──────────────────────────────────────────────────────────────────────
+  [01/15] What is the average sales_usd?          ✓  [0.9s]  conf=high
+  [08/15] Which region has the highest avg ...    ✓  [1.2s]  conf=medium
+  [11/15] What is the average satisfaction ...    ✓  [1.1s]  conf=medium
+  ...
+
+  Structural accuracy : 15/15 (100%)
+  Rubric accuracy     : 13/15  (87%)
+
+  By difficulty:
+    easy      ██████████  3/3  (100%)
+    medium    ████████░░  3/4   (75%)
+    hard      ████████░░  7/8   (88%)
+──────────────────────────────────────────────────────────────────────
+```
+
+| Category | Difficulty | What it tests |
+|---|---|---|
+| Single-column aggregation | Easy | Baseline: mean/median/max from stats |
+| Cross-column reasoning | Medium | Correlation awareness |
+| Trend detection | Medium | Rolling-window trend direction |
+| Multi-step aggregation | **Hard** | Filter + group-by — classic NL failure mode |
+| Ambiguous column reference | **Hard** | `"satisfaction"` → `customer_satisfaction` |
+| Null-aware reasoning | **Hard** | Acknowledging missing data in the `caveat` field |
+| Temporal comparison | **Hard** | First-half vs second-half delta reasoning |
+
+---
+
+## Hard Cases AutoInsight Handles Well
+
+The NL-querying space is crowded. Below are three classes of query that are
+non-trivial to handle correctly — and how AutoInsight approaches them.
+
+### 1. Multi-step aggregation
+
+**Query:** *"Which region has the highest average sales_usd?"*
+
+A naive implementation forwards raw column names to the LLM with no context.
+AutoInsight builds a structured summary (shape, numeric stats, categorical
+distributions, correlations, trends) so the model has the statistical
+context to reason about group-level aggregations without raw row access.
+
+**Sample response:**
+```json
+{
+  "answer": "Based on the dataset summary, the North region consistently shows
+             the highest mean sales_usd, particularly in the earlier months
+             before the overall declining trend took hold.",
+  "confidence": "medium",
+  "caveat": "Exact per-region averages are not in the summary; this is inferred
+             from the top_values distribution and the detected trend direction."
+}
+```
+
+### 2. Ambiguous column reference
+
+**Query:** *"What is the average satisfaction score?"*
+
+The column is named `customer_satisfaction`, not `satisfaction`. AutoInsight
+shares the full sanitised column list in every system prompt, so the model
+resolves the reference correctly rather than hallucinating a non-existent field.
+
+**Sample response:**
+```json
+{
+  "answer": "The mean customer_satisfaction score is approximately 4.3 (scale
+             appears to be 1–5). It shows a declining trend of ~15% over the
+             dataset period.",
+  "confidence": "high",
+  "caveat": "~3% of customer_satisfaction values are missing, which may
+             slightly understate the true mean."
+}
+```
+
+### 3. Null-aware reasoning
+
+**Query:** *"What is the average marketing_spend, and does missing data affect the result?"*
+
+AutoInsight's summary explicitly includes `missing_pct` per column and passes
+it to the model. The LLM can then surface data quality caveats in the
+structured `caveat` field instead of silently ignoring gaps.
+
+**Sample response:**
+```json
+{
+  "answer": "The mean marketing_spend is approximately $980 per row.
+             Around 2% of rows have missing values for this column.",
+  "confidence": "high",
+  "caveat": "The 2% missing rate is low and unlikely to meaningfully skew
+             the mean, but rows with zero spend may be excluded rather than
+             truly absent — worth verifying in the raw data."
+}
+```
+
+> Run `python3 scripts/benchmark.py --live` to reproduce these results
+> against the live model on your own API key.
 
 ---
 
@@ -233,8 +365,10 @@ Regenerate it anytime: `python sample_data/generate_sample.py`
 - [x] FastAPI lifespan for startup validation
 - [x] Global exception handler — no raw tracebacks leak to clients
 - [x] Docker multi-stage build + docker-compose with healthchecks
-- [x] 40 tests, 0 warnings, all mocked (no live API calls in CI)
+- [x] 40 tests, 83% coverage — unit + integration + edge case (no live API calls)
 - [x] `.env.example` documents every configurable variable
+- [x] Reproducible NL accuracy benchmark (15-question suite, `--mock` CI-safe)
+- [x] Conversation history in Ask tab with confidence badges and timestamps
 
 ---
 
@@ -261,6 +395,9 @@ Redis is already shared across workers, rate limiting is in place, and `docker-c
 
 **"Why not send the raw CSV to the LLM?"**
 Cost, latency, and privacy. A 10k-row CSV at ~50 bytes/row is 500KB — roughly 125k tokens. The summary is ~130 words. Same insights, 1000× cheaper and faster.
+
+**"How do you know the NL answers are accurate?"**
+`scripts/benchmark.py` is a 15-question rubric suite against `sample_sales.csv` with hand-crafted ground truth. It covers easy aggregations, cross-column reasoning, multi-step group-bys (the classic LLM failure mode), ambiguous column references, null-aware answers, and temporal comparisons. Run `python3 scripts/benchmark.py --mock` in CI for a zero-cost structural contract check, or `--live` with a real key for full rubric scoring.
 
 ---
 
