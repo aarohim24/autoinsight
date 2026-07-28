@@ -7,9 +7,9 @@ import { uploadCSV, analyze } from "@/lib/api";
 
 
 const STATS = [
-  { value: "CSV",  label: "Input format" },
+  { value: "87%",  label: "NL query accuracy" },
   { value: "50MB", label: "Max file size" },
-  { value: "<2s",  label: "Analysis time" },
+  { value: "83%",  label: "Test coverage" },
 ];
 
 function UploadIcon() {

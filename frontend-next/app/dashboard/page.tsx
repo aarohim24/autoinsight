@@ -438,6 +438,7 @@ export default function Dashboard() {
               insights={insights}
               summary={dataSummary}
               filename={uploadMeta.filename}
+              queryHistory={queryHistory}
             />
             <button
               className="btn btn-primary"

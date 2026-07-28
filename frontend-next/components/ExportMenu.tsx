@@ -1,15 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import type { InsightResult, DataSummary } from "@/lib/types";
+import type { InsightResult, DataSummary, QueryResult } from "@/lib/types";
+
+// Matches the QueryEntry shape used in dashboard/page.tsx
+interface QueryEntry {
+  id: string;
+  question: string;
+  result: QueryResult;
+  timestamp: Date;
+}
 
 interface ExportMenuProps {
   insights: InsightResult | null;
   summary: DataSummary | null;
   filename: string;
+  queryHistory?: QueryEntry[];
 }
 
-export function ExportMenu({ insights, summary, filename }: ExportMenuProps) {
+export function ExportMenu({ insights, summary, filename, queryHistory = [] }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -63,6 +72,41 @@ export function ExportMenu({ insights, summary, filename }: ExportMenuProps) {
     setOpen(false);
   };
 
+  const downloadConversationMd = () => {
+    if (!queryHistory.length) return;
+    const lines = [
+      `# AutoInsight — Query Conversation`,
+      `**File:** ${filename}`,
+      `**Exported:** ${new Date().toLocaleString()}`,
+      `**Questions:** ${queryHistory.length}`,
+      "",
+    ];
+    queryHistory.forEach((entry, i) => {
+      lines.push(
+        `## Q${i + 1} — ${entry.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
+        "",
+        `**Question:** ${entry.question}`,
+        "",
+        `**Answer** *(confidence: ${entry.result.confidence})*`,
+        "",
+        entry.result.answer,
+      );
+      if (entry.result.caveat) {
+        lines.push("", `> ⚠ ${entry.result.caveat}`);
+      }
+      lines.push("");
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename.replace(".csv", "")}_conversation.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setOpen(false);
+  };
+
   const downloadInsightsMd = () => {
     if (!insights) return;
     const md = [
@@ -92,6 +136,7 @@ export function ExportMenu({ insights, summary, filename }: ExportMenuProps) {
 
   const hasInsights = !!insights;
   const hasSummary = !!summary;
+  const hasConversation = queryHistory.length > 0;
 
   return (
     <div style={{ position: "relative" }}>
@@ -133,6 +178,18 @@ export function ExportMenu({ insights, summary, filename }: ExportMenuProps) {
               label="Download insights (.md)"
               disabled={!hasInsights}
               onClick={downloadInsightsMd}
+            />
+            <div
+              style={{
+                height: 1,
+                background: "var(--border)",
+                margin: "6px 0",
+              }}
+            />
+            <ExportItem
+              label="Download conversation (.md)"
+              disabled={!hasConversation}
+              onClick={downloadConversationMd}
             />
             <div
               style={{

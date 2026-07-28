@@ -53,6 +53,12 @@ jobs:
           file: ./coverage.xml
           fail_ci_if_error: false
 
+      - name: NL benchmark — structural contract check
+        env:
+          GROQ_API_KEY: gsk-test-placeholder
+        run: |
+          python scripts/benchmark.py --mock
+
   # ── Frontend: type-check + lint ────────────────────────────────────────────
   frontend:
     name: Frontend checks
