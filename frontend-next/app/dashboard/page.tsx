@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   generateInsights,
@@ -29,6 +29,15 @@ import type {
   InsightResult,
   QueryResult,
 } from "@/lib/types";
+
+// ── Query history entry ───────────────────────────────────────────────────────
+
+interface QueryEntry {
+  id: string;
+  question: string;
+  result: QueryResult;
+  timestamp: Date;
+}
 
 import { KpiRow, DataQualityGauge } from "@/components/KpiCard";
 import { InsightColumn } from "@/components/InsightCard";
@@ -119,12 +128,64 @@ const TABS: { id: DashboardTab; label: string }[] = [
   { id: "ask",       label: "Ask" },
 ];
 
-const SUGGESTED_QUESTIONS = [
-  "Why are sales dropping?",
-  "Which columns are correlated?",
-  "Any data quality issues?",
-  "What trends should I investigate?",
-];
+// ── Dynamic suggested questions ──────────────────────────────────────────────
+// Derived from the actual dataset so they are always relevant.
+
+function buildSuggestedQuestions(
+  summary: DataSummary | null,
+  meta: UploadMeta | null
+): string[] {
+  if (!summary || !meta) return [];
+
+  const questions: string[] = [];
+  const numericCols      = summary.numeric_columns;
+  const categoricalCols  = summary.categorical_columns;
+  const trends           = summary.trends;
+  const correlations     = summary.strong_correlations;
+  const outlierCols      = Object.keys(summary.outliers ?? {});
+  const missingCols      = Object.keys(summary.missing_overview ?? {});
+
+  // Trend-based question (most specific — lead with it)
+  if (trends.length > 0) {
+    const t = trends[0];
+    questions.push(
+      `What is causing the ${t.direction} trend in ${t.column}?`
+    );
+  }
+
+  // Correlation-based question
+  if (correlations.length > 0) {
+    const c = correlations[0];
+    questions.push(`Why are ${c.col1} and ${c.col2} correlated?`);
+  }
+
+  // Cross-column aggregation (hardest NL case — showcases the system)
+  if (numericCols.length >= 2) {
+    questions.push(
+      `Which ${categoricalCols[0] ?? "segment"} has the highest average ${numericCols[0]}?`
+    );
+  } else if (numericCols.length === 1) {
+    questions.push(`What is the average ${numericCols[0]}?`);
+  }
+
+  // Outlier-based
+  if (outlierCols.length > 0) {
+    questions.push(`Explain the outliers in ${outlierCols[0]}.`);
+  }
+
+  // Missing data awareness
+  if (missingCols.length > 0) {
+    questions.push(
+      `How does the missing data in ${missingCols[0]} affect the analysis?`
+    );
+  }
+
+  // Fallback generic quality question
+  questions.push("Are there any data quality issues I should be aware of?");
+
+  // Return first 4, deduplicated
+  return [...new Set(questions)].slice(0, 4);
+}
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 
@@ -148,9 +209,10 @@ export default function Dashboard() {
   const [insightsError, setInsightsError]     = useState("");
 
   // Query state
-  const [question, setQuestion]     = useState("");
-  const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+  const [question, setQuestion]       = useState("");
+  const [queryHistory, setQueryHistory] = useState<QueryEntry[]>([]);
   const [queryLoading, setQueryLoading] = useState(false);
+  const historyEndRef = useRef<HTMLDivElement>(null);
 
   // Chart column selectors
   const [selectedNumericCol, setSelectedNumericCol]     = useState(0);
@@ -202,18 +264,35 @@ export default function Dashboard() {
   };
 
   const handleAskQuestion = async () => {
-    if (!uploadMeta || !question.trim()) return;
+    const q = question.trim();
+    if (!uploadMeta || !q || queryLoading) return;
     setQueryLoading(true);
-    setQueryResult(null);
+    setQuestion("");
     try {
-      const result = await askQuestion(uploadMeta.session_id, question);
-      setQueryResult(result);
+      const result = await askQuestion(uploadMeta.session_id, q);
+      setQueryHistory((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), question: q, result, timestamp: new Date() },
+      ]);
     } catch (err: unknown) {
-      setQueryResult({ answer: (err as Error).message, confidence: "low", caveat: "" });
+      setQueryHistory((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          question: q,
+          result: { answer: (err as Error).message, confidence: "low", caveat: "" },
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setQueryLoading(false);
     }
   };
+
+  // Auto-scroll conversation to latest entry
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [queryHistory]);
 
   const handleGoHome = useCallback(async () => {
     if (uploadMeta) {
@@ -870,8 +949,27 @@ export default function Dashboard() {
 
         {/* ── Ask tab ── */}
         {activeTab === "ask" && (
-          <div style={{ maxWidth: 640 }}>
-            <SectionHeading title="Natural language query" />
+          <div style={{ maxWidth: 680 }}>
+            {/* Header row */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 4,
+              }}
+            >
+              <SectionHeading title="Natural language query" />
+              {queryHistory.length > 0 && (
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setQueryHistory([])}
+                  style={{ fontSize: 10, padding: "4px 10px" }}
+                >
+                  Clear history
+                </button>
+              )}
+            </div>
             <p
               style={{
                 color: "var(--text-3)",
@@ -880,30 +978,222 @@ export default function Dashboard() {
                 lineHeight: 1.6,
               }}
             >
-              Ask a question about your dataset in plain English.
+              Ask anything about your dataset in plain English. Each answer
+              includes a confidence level and any caveats from the model.
             </p>
 
-            {/* Suggestion chips */}
+            {/* Suggestion chips — derived from the actual dataset */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-              {SUGGESTED_QUESTIONS.map((q) => (
+              {buildSuggestedQuestions(dataSummary, uploadMeta).map((q) => (
                 <button
                   key={q}
                   className="btn btn-secondary"
                   onClick={() => setQuestion(q)}
                   style={{ fontSize: 11 }}
+                  disabled={queryLoading}
                 >
                   {q}
                 </button>
               ))}
             </div>
 
-            {/* Input + Run button */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            {/* Conversation history */}
+            {queryHistory.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  marginBottom: 16,
+                  maxHeight: 480,
+                  overflowY: "auto",
+                  paddingRight: 4,
+                }}
+              >
+                {queryHistory.map((entry) => (
+                  <div key={entry.id} className="fade-up">
+                    {/* Question bubble */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginBottom: 6,
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: "rgba(0,255,135,0.07)",
+                          border: "1px solid rgba(0,255,135,0.18)",
+                          borderRadius: "8px 8px 2px 8px",
+                          padding: "8px 14px",
+                          maxWidth: "80%",
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 12,
+                          color: "var(--text)",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {entry.question}
+                      </div>
+                    </div>
+
+                    {/* Answer bubble */}
+                    <div
+                      className="panel"
+                      style={{
+                        padding: "14px 16px",
+                        borderLeft: "2px solid",
+                        borderLeftColor:
+                          entry.result.confidence === "high"
+                            ? "var(--accent)"
+                            : entry.result.confidence === "medium"
+                            ? "var(--warn)"
+                            : "var(--danger)",
+                      }}
+                    >
+                      {/* Confidence + timestamp row */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 8,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 10,
+                            padding: "2px 8px",
+                            borderRadius: 4,
+                            background:
+                              entry.result.confidence === "high"
+                                ? "rgba(0,255,135,0.1)"
+                                : entry.result.confidence === "medium"
+                                ? "rgba(245,158,11,0.1)"
+                                : "rgba(239,68,68,0.1)",
+                            color:
+                              entry.result.confidence === "high"
+                                ? "var(--accent)"
+                                : entry.result.confidence === "medium"
+                                ? "var(--warn)"
+                                : "var(--danger)",
+                          }}
+                        >
+                          {entry.result.confidence} confidence
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 9,
+                            color: "var(--text-3)",
+                            marginLeft: "auto",
+                          }}
+                        >
+                          {entry.timestamp.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Answer text */}
+                      <p
+                        style={{
+                          color: "var(--text-2)",
+                          fontSize: "0.85rem",
+                          lineHeight: 1.7,
+                        }}
+                      >
+                        {entry.result.answer}
+                      </p>
+
+                      {/* Caveat */}
+                      {entry.result.caveat && (
+                        <p
+                          style={{
+                            color: "var(--text-3)",
+                            fontSize: "0.78rem",
+                            marginTop: 8,
+                            fontStyle: "italic",
+                            borderTop: "1px solid var(--border)",
+                            paddingTop: 8,
+                          }}
+                        >
+                          ⚠ {entry.result.caveat}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Thinking indicator */}
+                {queryLoading && (
+                  <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                    <div
+                      className="panel"
+                      style={{
+                        padding: "12px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        borderLeft: "2px solid var(--border-hi)",
+                      }}
+                    >
+                      <Spinner />
+                      <span
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 11,
+                          color: "var(--text-3)",
+                        }}
+                      >
+                        Thinking…
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={historyEndRef} />
+              </div>
+            )}
+
+            {/* Thinking indicator when history is empty */}
+            {queryLoading && queryHistory.length === 0 && (
+              <div
+                className="panel"
+                style={{
+                  padding: "14px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 16,
+                  borderLeft: "2px solid var(--border-hi)",
+                }}
+              >
+                <Spinner />
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    color: "var(--text-3)",
+                  }}
+                >
+                  Thinking…
+                </span>
+              </div>
+            )}
+
+            {/* Input + Ask button */}
+            <div style={{ display: "flex", gap: 8 }}>
               <input
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAskQuestion()}
-                placeholder="e.g. What is driving revenue growth?"
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !e.shiftKey && handleAskQuestion()
+                }
+                placeholder="Ask anything about your data…"
+                disabled={queryLoading}
                 style={{
                   flex: 1,
                   background: "var(--bg-2)",
@@ -914,7 +1204,8 @@ export default function Dashboard() {
                   fontFamily: "var(--font-mono)",
                   fontSize: 12,
                   outline: "none",
-                  transition: "border-color 0.15s",
+                  transition: "border-color 0.15s, opacity 0.15s",
+                  opacity: queryLoading ? 0.5 : 1,
                 }}
                 onFocus={(e) => (e.target.style.borderColor = "var(--border-hi)")}
                 onBlur={(e) => (e.target.style.borderColor = "var(--border)")}
@@ -927,65 +1218,6 @@ export default function Dashboard() {
                 {queryLoading ? <Spinner /> : "Ask"}
               </button>
             </div>
-
-            {/* Answer panel */}
-            {queryResult && (
-              <div className="panel fade-up" style={{ padding: "18px 20px" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 12,
-                  }}
-                >
-                  <span className="label">Response</span>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 10,
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      background:
-                        queryResult.confidence === "high"
-                          ? "rgba(0,255,135,0.1)"
-                          : queryResult.confidence === "medium"
-                          ? "rgba(245,158,11,0.1)"
-                          : "rgba(239,68,68,0.1)",
-                      color:
-                        queryResult.confidence === "high"
-                          ? "var(--accent)"
-                          : queryResult.confidence === "medium"
-                          ? "var(--warn)"
-                          : "var(--danger)",
-                    }}
-                  >
-                    {queryResult.confidence}
-                  </span>
-                </div>
-                <p
-                  style={{
-                    color: "var(--text-2)",
-                    fontSize: "0.85rem",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {queryResult.answer}
-                </p>
-                {queryResult.caveat && (
-                  <p
-                    style={{
-                      color: "var(--text-3)",
-                      fontSize: "0.78rem",
-                      marginTop: 10,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {queryResult.caveat}
-                  </p>
-                )}
-              </div>
-            )}
           </div>
         )}
       </main>
